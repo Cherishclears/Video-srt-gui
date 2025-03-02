@@ -1,0 +1,6 @@
+pyside6
+Pyside6-Fluent-Widgets
+torch==1.13.1+cu117
+torchaudio==0.13.1+cu117
+faster-whisper==0.10.0
+yt-dlp
