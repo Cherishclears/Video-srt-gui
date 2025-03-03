@@ -170,8 +170,41 @@ class DemucsWorker(QThread):
         """加载并重采样音频"""
         file_path = os.path.abspath(file_path)
 
-        # 检查音频通道数
-        waveform, original_sample_rate = torchaudio.load(file_path)
+        try:
+            # 首先尝试使用torchaudio.load
+            waveform, original_sample_rate = torchaudio.load(file_path)
+        except Exception as e:
+            print(f"使用torchaudio.load加载失败，尝试使用ffmpeg: {str(e)}")
+            # 尝试使用ffmpeg作为后备方案
+            try:
+                import subprocess
+                import numpy as np
+                from scipy.io import wavfile
+
+                # 创建临时WAV文件
+                temp_wav = file_path + ".temp.wav"
+
+                # 使用ffmpeg转换为WAV
+                subprocess.call(['ffmpeg', '-i', file_path, '-ar', str(sample_rate), '-ac', '2', temp_wav])
+
+                # 读取转换后的WAV文件
+                sr, data = wavfile.read(temp_wav)
+
+                # 确保是立体声
+                if len(data.shape) == 1:
+                    data = np.column_stack((data, data))
+
+                # 转换为torch张量
+                waveform = torch.tensor(data.T, dtype=torch.float32) / 32768.0
+                original_sample_rate = sr
+
+                # 删除临时文件
+                try:
+                    os.remove(temp_wav)
+                except:
+                    pass
+            except Exception as backup_e:
+                raise Exception(f"使用torchaudio和ffmpeg都无法加载音频: {str(e)} | {str(backup_e)}")
 
         # 将单声道转换为立体声
         if waveform.size(0) == 1:
